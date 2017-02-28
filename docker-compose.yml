@@ -1,0 +1,65 @@
+version: '2'
+services:
+  mail:
+    container_name: fk_mail
+    image: namshi/smtp
+  app:
+    build: .
+    command: bundle exec puma -C config/puma.rb
+    working_dir: /var/www/findkemist
+    depends_on:
+      - db
+    volumes:
+      - ./findkemist:/var/www/findkemist:Z
+      - ./findkemist/log:/var/www/findkemist/log:Z
+      - ./findkemist/public:/var/www/findkemist/public:Z
+      - ./findkemist/tmp:/var/www/findkemist/tmp:Z
+      - ./init.sh:/var/www/findkemist/init.sh:Z
+    #  - ./findkemist/bundle:/usr/local/bundle:Z
+    expose:
+      - "3000"
+    container_name: findkemist
+    links:
+      - db
+    env_file:
+      - rails_variables.env
+  web:
+    build:
+      context: ./
+      dockerfile: Dockerfile-nginx
+    links:
+      - app
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:Z
+      - ./nginx/log:/var/log/nginx:Z
+    container_name: fk_nginx
+    ports:
+      - '80:80'
+  db:
+    build: ./mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+    volumes:
+      - ./database_initial:/docker-entrypoint-initdb.d:Z
+      - ${DOCKER_GARDES_MYSQL_VOLUME}:/var/lib/mysql:Z
+      - ./mysql/rebuild.sh:/var/dbs/rebuild.sh:Z
+      - ./dumps/sosgardes_last.sql:/var/dbs/sosgardes_last.sql:Z
+    ports:
+      - 3306:3306
+    container_name: fk_mysql
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: phpmyadmin
+    environment:
+      - PMA_ARBITRARY=1
+      - PMA_PORT=3306
+      - PMA_USER=root
+      - PMA_PASSWORD=password
+      - PMA_HOST=db
+    restart: always
+    ports:
+      - 8080:80
+    volumes:
+      - /sessions
+    links:
+      - db
